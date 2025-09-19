@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>台南市即時環境資訊</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { 
+      font-family: "Microsoft JhengHei", sans-serif; 
+      background: #fff; 
+      margin: 20px; 
+    }
+    .row-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+    .row-info {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+    .row-info div:nth-child(1) { text-align: left; }
+    .row-info div:nth-child(2) { text-align: center; }
+    .row-info div:nth-child(3) { text-align: center; }
+    .row-info div:nth-child(4) { text-align: right; }
+
+    #aqi { 
+      font-weight: bold; 
+      padding: 2px 6px; 
+      border-radius: 4px; 
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <!-- 第一排：時間 + 測站選單 -->
+    <div class="row-top">
+      <div id="datetime">--</div>
+      <div>
+        <label for="stationSelect">選擇測站：</label>
+        <select id="stationSelect">
+          <option value="臺南">臺南（東區）</option>
+          <option value="安南">安南</option>
+          <option value="新營">新營</option>
+          <option value="善化">善化</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- 第二排：四個資訊 -->
+    <div class="row-info">
+      <div>🌡 溫度：<span id="temp">載入中…</span></div>
+      <div>💧 濕度：<span id="humidity">載入中…</span></div>
+      <div>⛅ 天氣：<span id="weather">載入中…</span></div>
+      <div>🌫 AQI：<span id="aqi">載入中…</span></div>
+    </div>
+
+  </div>
+
+  <script>
+    // 時間
+    function updateTime() {
+      const now = new Date();
+      const weekdays = ["日","一","二","三","四","五","六"];
+      const formatted = now.toLocaleDateString() + " (週" + weekdays[now.getDay()] + ") " +
+                        now.toLocaleTimeString();
+      document.getElementById("datetime").innerText = formatted;
+    }
+    setInterval(updateTime, 1000);
+    updateTime();
+
+    // AQI 顏色
+    function getAQIColor(aqi) {
+      if (aqi <= 50) return "#00E400";       // 綠
+      if (aqi <= 100) return "#FFFF00";      // 黃
+      if (aqi <= 150) return "#FF7E00";      // 橘
+      if (aqi <= 200) return "#FF0000";      // 紅
+      if (aqi <= 300) return "#8F3F97";      // 紫
+      return "#7E0023";                      // 褐紅
+    }
+
+    // 溫度 + 濕度
+    async function loadTempHumidity() {
+      try {
+        const tempRes = await fetch("https://sta.ci.taiwan.gov.tw/STA_AirQuality_EPAIoT/v1.0/Datastreams?$expand=Thing,Observations($orderby=phenomenonTime%20desc;$top=1)&$filter=name%20eq%20%27Temperature%27&$count=true");
+        const tempData = await tempRes.json();
+        document.getElementById("temp").innerText = tempData.value[0].Observations[0].result + " °C";
+
+        const humRes = await fetch("https://sta.ci.taiwan.gov.tw/STA_AirQuality_EPAIoT/v1.0/Datastreams?$expand=Thing,Observations($orderby=phenomenonTime%20desc;$top=1)&$filter=name%20eq%20%27Relative%20humidity%27&$count=true");
+        const humData = await humRes.json();
+        document.getElementById("humidity").innerText = humData.value[0].Observations[0].result + " %";
+      } catch (err) { 
+        document.getElementById("temp").innerText = "⚠ 讀取失敗";
+        document.getElementById("humidity").innerText = "⚠ 讀取失敗";
+      }
+    }
+
+    // 天氣
+    async function loadWeather() {
+      try {
+        const res = await fetch("https://sta.ci.taiwan.gov.tw/STA_Weather/v1.0/Datastreams?$expand=Thing/Locations,Observations($orderby=phenomenonTime%20desc;$top=1)&$select=name,properties&$filter=substringof(%27%E7%8F%BE%E5%9C%A8%E5%A4%A9%E6%B0%A3%E8%A7%80%E6%B8%AC%E5%A0%B1%E5%91%8A%27,Thing/description)&$count=true");
+        const data = await res.json();
+        document.getElementById("weather").innerText = data.value[0].Observations[0].result;
+      } catch (err) { 
+        document.getElementById("weather").innerText = "⚠ 讀取失敗";
+      }
+    }
+
+    // AQI
+    async function loadAQI(stationName="臺南") {
+      const aqiBox = document.getElementById("aqi");
+      aqiBox.innerText = "載入中…";
+      aqiBox.style.backgroundColor = "transparent";
+
+      try {
+        const res = await fetch("https://data.moenv.gov.tw/api/v2/aqx_p_432?api_key=9e565f9a-84dd-4e79-9097-d403cae1ea75&limit=1000&sort=ImportDate%20desc&format=JSON");
+        const data = await res.json();
+        const station = data.records.find(r => r.sitename === stationName);
+
+        if (station) {
+          const aqi = parseInt(station.aqi);
+          aqiBox.innerText = `${aqi} (${station.status})`;
+          aqiBox.style.backgroundColor = getAQIColor(aqi);
+        } else {
+          aqiBox.innerText = "⚠ 找不到測站";
+          aqiBox.style.backgroundColor = "transparent";
+        }
+      } catch (err) { 
+        aqiBox.innerText = "⚠ 讀取失敗";
+        aqiBox.style.backgroundColor = "transparent";
+      }
+    }
+
+    // 初始化
+    loadTempHumidity();
+    loadWeather();
+    loadAQI();
+
+    // 切換測站
+    document.getElementById("stationSelect").addEventListener("change", function() {
+      loadAQI(this.value);
+    });
+  </script>
+</body>
+</html>
