@@ -32,6 +32,51 @@
       padding: 2px 6px; 
       border-radius: 4px; 
     }
+
+    /* ⓘ 按鈕 */
+    .info-btn {
+      display: inline-block;
+      margin-left: 8px;
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      border: 1px solid #333;
+      text-align: center;
+      font-size: 14px;
+      line-height: 20px;
+      cursor: pointer;
+    }
+
+    /* 彈出視窗 */
+    .modal {
+      display: none; 
+      position: fixed; 
+      z-index: 999; 
+      left: 0; top: 0;
+      width: 100%; height: 100%;
+      background-color: rgba(0,0,0,0.4);
+    }
+    .modal-content {
+      background: #fff;
+      margin: 10% auto;
+      padding: 20px;
+      border-radius: 8px;
+      width: 300px;
+      font-size: 16px;
+    }
+    .close {
+      color: #aaa;
+      float: right;
+      font-size: 24px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .close:hover { color: black; }
+    .aqi-level {
+      margin: 6px 0;
+      padding: 4px;
+      border-radius: 4px;
+      color: #000;
+    }
   </style>
 </head>
 <body>
@@ -56,9 +101,26 @@
       <div>🌡 溫度：<span id="temp">載入中…</span></div>
       <div>💧 濕度：<span id="humidity">載入中…</span></div>
       <div>⛅ 天氣：<span id="weather">載入中…</span></div>
-      <div>🌫 AQI：<span id="aqi">載入中…</span></div>
+      <div>
+        🌫 AQI：<span id="aqi">載入中…</span>
+        <span class="info-btn" id="infoBtn">i</span>
+      </div>
     </div>
 
+  </div>
+
+  <!-- 彈出視窗 -->
+  <div id="infoModal" class="modal">
+    <div class="modal-content">
+      <span class="close" id="closeModal">&times;</span>
+      <h3>AQI 分級說明</h3>
+      <div class="aqi-level" style="background:#79FF79;">0–50 良好</div>
+      <div class="aqi-level" style="background:#FFFF6F;">51–100 普通</div>
+      <div class="aqi-level" style="background:#FFBB77;">101–150 對敏感族群不健康</div>
+      <div class="aqi-level" style="background:#FF2D2D;">151–200 對所有人不健康</div>
+      <div class="aqi-level" style="background:#B15BFF;">201–300 非常不健康</div>
+      <div class="aqi-level" style="background:#7E0023; color:#fff;">301+ 危害</div>
+    </div>
   </div>
 
   <script>
@@ -75,11 +137,11 @@
 
     // AQI 顏色
     function getAQIColor(aqi) {
-      if (aqi <= 50) return "#00E400";       // 綠
-      if (aqi <= 100) return "#FFFF00";      // 黃
-      if (aqi <= 150) return "#FF7E00";      // 橘
-      if (aqi <= 200) return "#FF0000";      // 紅
-      if (aqi <= 300) return "#8F3F97";      // 紫
+      if (aqi <= 50) return "#79FF79";       // 綠
+      if (aqi <= 100) return "#FFFF6F";      // 黃
+      if (aqi <= 150) return "#FFBB77";      // 橘
+      if (aqi <= 200) return "#FF2D2D";      // 紅
+      if (aqi <= 300) return "#B15BFF";      // 紫
       return "#7E0023";                      // 褐紅
     }
 
@@ -144,7 +206,15 @@
     document.getElementById("stationSelect").addEventListener("change", function() {
       loadAQI(this.value);
     });
+
+    // 彈出視窗控制
+    const modal = document.getElementById("infoModal");
+    const btn = document.getElementById("infoBtn");
+    const closeBtn = document.getElementById("closeModal");
+
+    btn.onclick = () => { modal.style.display = "block"; }
+    closeBtn.onclick = () => { modal.style.display = "none"; }
+    window.onclick = (e) => { if (e.target === modal) modal.style.display = "none"; }
   </script>
 </body>
 </html>
-
