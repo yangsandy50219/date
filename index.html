@@ -1,84 +1,161 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
+
 <head>
   <meta charset="UTF-8">
   <title>台南市即時環境資訊</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    body { 
-      font-family: "Microsoft JhengHei", sans-serif; 
-      background: #fff; 
+    body {
+      font-family: "Microsoft JhengHei", sans-serif;
+      background: #fff;
       margin: 20px;
       font-size: 20px;
     }
+
     .row-top {
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-bottom: 15px;
     }
+
     .row-info {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
       gap: 10px;
     }
-    .row-info div:nth-child(1) { text-align: left; }
-    .row-info div:nth-child(2) { text-align: center; }
-    .row-info div:nth-child(3) { text-align: center; }
-    .row-info div:nth-child(4) { text-align: right; }
 
-    #aqi { 
-      font-weight: bold; 
-      padding: 2px 6px; 
-      border-radius: 4px; 
+    /* 只套用在 .row-info 的直屬四個欄位 */
+    .row-info>div:nth-child(1) {
+      text-align: left;
+    }
+
+    .row-info>div:nth-child(2) {
+      text-align: center;
+    }
+
+    .row-info>div:nth-child(3) {
+      text-align: center;
+    }
+
+    .row-info>div:nth-child(4) {
+      text-align: right;
+    }
+
+
+    #aqi {
+      font-weight: bold;
+      padding: 2px 6px;
+      border-radius: 4px;
     }
 
     /* ⓘ 按鈕 */
     .info-btn {
       display: inline-block;
       margin-left: 8px;
-      width: 20px; height: 20px;
+      width: 20px;
+      height: 20px;
       border-radius: 50%;
       border: 1px solid #333;
       text-align: center;
       font-size: 14px;
       line-height: 20px;
-      cursor: pointer;
+      cursor: default;
     }
 
-    /* 彈出視窗 */
-    .modal {
-      display: none; 
-      position: fixed; 
-      z-index: 999; 
-      left: 0; top: 0;
-      width: 100%; height: 100%;
-      background-color: rgba(0,0,0,0.4);
+    /* 資訊提示框 */
+    .popover {
+      display: none;
+      position: fixed;
+      /* 🔑 用 fixed 定位在視窗 */
+      top: 5px;
+      /* 畫面最上方 */
+      right: 20px;
+
+      /* 調整成真正置中 */
+      background: rgba(145, 137, 137, 0.8);
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      padding: 10px;
+      width: 400px;
+      font-size: 14px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+      z-index: 9999;
     }
-    .modal-content {
-      background: #fff;
-      margin: 10% auto;
-      padding: 20px;
-      border-radius: 8px;
-      width: 300px;
+
+
+    .info-btn:hover+.popover,
+    .popover:hover {
+      display: block;
+    }
+
+    .aqi-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      /* 兩欄 */
+      gap: 6px 12px;
+      /* 上下間距6px, 左右間距12px */
+    }
+
+    .aqi-title {
+      color: #ffffff;
+      /* 你想要的顏色，例如深灰 */
       font-size: 16px;
+      /* 如果想加大 */
     }
-    .close {
-      color: #aaa;
-      float: right;
-      font-size: 24px;
-      font-weight: bold;
-      cursor: pointer;
-    }
-    .close:hover { color: black; }
+
     .aqi-level {
-      margin: 6px 0;
-      padding: 4px;
+      padding: 6px;
       border-radius: 4px;
+      font-weight: bold;
+      text-align: center;
+      /* 文字水平置中 */
+      white-space: nowrap;
+      width: 100%;
+      /* 保證每格一樣寬 */
+      box-sizing: border-box;
+    }
+
+
+    .level1 {
+      background: rgba(121, 255, 121, 0.75);
+      /* #79FF79 */
       color: #000;
+    }
+
+    .level2 {
+      background: rgba(255, 255, 111, 0.75);
+      /* #FFFF6F */
+      color: #000;
+    }
+
+    .level3 {
+      background: rgba(255, 187, 119, 0.75);
+      /* #FFBB77 */
+      color: #000;
+    }
+
+    .level4 {
+      background: rgba(255, 45, 45, 0.75);
+      /* #FF2D2D */
+      color: #fff;
+    }
+
+    .level5 {
+      background: rgba(177, 91, 255, 0.75);
+      /* #B15BFF */
+      color: #fff;
+    }
+
+    .level6 {
+      background: rgba(126, 0, 35, 0.75);
+      /* #7E0023 */
+      color: #fff;
     }
   </style>
 </head>
+
 <body>
   <div class="container">
 
@@ -101,120 +178,115 @@
       <div>🌡 溫度：<span id="temp">載入中…</span></div>
       <div>💧 濕度：<span id="humidity">載入中…</span></div>
       <div>⛅ 天氣：<span id="weather">載入中…</span></div>
-      <div>
+      <!-- 提示視窗 -->
+      <div style="position:relative; display:inline-block;">
         🌫 AQI：<span id="aqi">載入中…</span>
-        <span class="info-btn" id="infoBtn">i</span>
+        <span class="info-btn">i</span>
+        <div class="popover">
+          <b class="aqi-title">AQI 分級說明</b>
+          <div class="aqi-grid">
+            <div class="aqi-level level1">0-50 良好</div>
+            <div class="aqi-level level2">51-100 普通</div>
+            <div class="aqi-level level3">101-150 對敏感族群不健康</div>
+            <div class="aqi-level level4">151-200 對所有人不健康</div>
+            <div class="aqi-level level5">201-300 非常不健康</div>
+            <div class="aqi-level level6">301+ 危害</div>
+          </div>
+        </div>
+
+
+
       </div>
     </div>
 
-  </div>
 
-  <!-- 彈出視窗 -->
-  <div id="infoModal" class="modal">
-    <div class="modal-content">
-      <span class="close" id="closeModal">&times;</span>
-      <h3>AQI 分級說明</h3>
-      <div class="aqi-level" style="background:#79FF79;">0–50 良好</div>
-      <div class="aqi-level" style="background:#FFFF6F;">51–100 普通</div>
-      <div class="aqi-level" style="background:#FFBB77;">101–150 對敏感族群不健康</div>
-      <div class="aqi-level" style="background:#FF2D2D;">151–200 對所有人不健康</div>
-      <div class="aqi-level" style="background:#B15BFF;">201–300 非常不健康</div>
-      <div class="aqi-level" style="background:#7E0023; color:#fff;">301+ 危害</div>
-    </div>
-  </div>
 
-  <script>
-    // 時間
-    function updateTime() {
-      const now = new Date();
-      const weekdays = ["日","一","二","三","四","五","六"];
-      const formatted = now.toLocaleDateString() + " (週" + weekdays[now.getDay()] + ") " +
-                        now.toLocaleTimeString();
-      document.getElementById("datetime").innerText = formatted;
-    }
-    setInterval(updateTime, 1000);
-    updateTime();
-
-    // AQI 顏色
-    function getAQIColor(aqi) {
-      if (aqi <= 50) return "#79FF79";       // 綠
-      if (aqi <= 100) return "#FFFF6F";      // 黃
-      if (aqi <= 150) return "#FFBB77";      // 橘
-      if (aqi <= 200) return "#FF2D2D";      // 紅
-      if (aqi <= 300) return "#B15BFF";      // 紫
-      return "#7E0023";                      // 褐紅
-    }
-
-    // 溫度 + 濕度
-    async function loadTempHumidity() {
-      try {
-        const tempRes = await fetch("https://sta.ci.taiwan.gov.tw/STA_AirQuality_EPAIoT/v1.0/Datastreams?$expand=Thing,Observations($orderby=phenomenonTime%20desc;$top=1)&$filter=name%20eq%20%27Temperature%27&$count=true");
-        const tempData = await tempRes.json();
-        document.getElementById("temp").innerText = tempData.value[0].Observations[0].result + " °C";
-
-        const humRes = await fetch("https://sta.ci.taiwan.gov.tw/STA_AirQuality_EPAIoT/v1.0/Datastreams?$expand=Thing,Observations($orderby=phenomenonTime%20desc;$top=1)&$filter=name%20eq%20%27Relative%20humidity%27&$count=true");
-        const humData = await humRes.json();
-        document.getElementById("humidity").innerText = humData.value[0].Observations[0].result + " %";
-      } catch (err) { 
-        document.getElementById("temp").innerText = "⚠ 讀取失敗";
-        document.getElementById("humidity").innerText = "⚠ 讀取失敗";
+    <script>
+      // 時間
+      function updateTime() {
+        const now = new Date();
+        const weekdays = ["日", "一", "二", "三", "四", "五", "六"];
+        const formatted = now.toLocaleDateString() + " (週" + weekdays[now.getDay()] + ") " +
+          now.toLocaleTimeString();
+        document.getElementById("datetime").innerText = formatted;
       }
-    }
+      setInterval(updateTime, 1000);
+      updateTime();
 
-    // 天氣
-    async function loadWeather() {
-      try {
-        const res = await fetch("https://sta.ci.taiwan.gov.tw/STA_Weather/v1.0/Datastreams?$expand=Thing/Locations,Observations($orderby=phenomenonTime%20desc;$top=1)&$select=name,properties&$filter=substringof(%27%E7%8F%BE%E5%9C%A8%E5%A4%A9%E6%B0%A3%E8%A7%80%E6%B8%AC%E5%A0%B1%E5%91%8A%27,Thing/description)&$count=true");
-        const data = await res.json();
-        document.getElementById("weather").innerText = data.value[0].Observations[0].result;
-      } catch (err) { 
-        document.getElementById("weather").innerText = "⚠ 讀取失敗";
+      // AQI 顏色
+      function getAQIColor(aqi) {
+        if (aqi <= 50) return "#79FF79";       // 綠
+        if (aqi <= 100) return "#FFFF6F";      // 黃
+        if (aqi <= 150) return "#FFBB77";      // 橘
+        if (aqi <= 200) return "#FF2D2D";      // 紅
+        if (aqi <= 300) return "#B15BFF";      // 紫
+        return "#7E0023";                      // 褐紅
       }
-    }
 
-    // AQI
-    async function loadAQI(stationName="臺南") {
-      const aqiBox = document.getElementById("aqi");
-      aqiBox.innerText = "載入中…";
-      aqiBox.style.backgroundColor = "transparent";
+      // 溫度 + 濕度
+      async function loadTempHumidity() {
+        try {
+          const tempRes = await fetch("https://sta.ci.taiwan.gov.tw/STA_AirQuality_EPAIoT/v1.0/Datastreams?$expand=Thing,Observations($orderby=phenomenonTime%20desc;$top=1)&$filter=name%20eq%20%27Temperature%27&$count=true");
+          const tempData = await tempRes.json();
+          document.getElementById("temp").innerText = tempData.value[0].Observations[0].result + " °C";
 
-      try {
-        const res = await fetch("https://data.moenv.gov.tw/api/v2/aqx_p_432?api_key=9e565f9a-84dd-4e79-9097-d403cae1ea75&limit=1000&sort=ImportDate%20desc&format=JSON");
-        const data = await res.json();
-        const station = data.records.find(r => r.sitename === stationName);
+          const humRes = await fetch("https://sta.ci.taiwan.gov.tw/STA_AirQuality_EPAIoT/v1.0/Datastreams?$expand=Thing,Observations($orderby=phenomenonTime%20desc;$top=1)&$filter=name%20eq%20%27Relative%20humidity%27&$count=true");
+          const humData = await humRes.json();
+          document.getElementById("humidity").innerText = humData.value[0].Observations[0].result + " %";
+        } catch (err) {
+          document.getElementById("temp").innerText = "⚠ 讀取失敗";
+          document.getElementById("humidity").innerText = "⚠ 讀取失敗";
+        }
+      }
 
-        if (station) {
-          const aqi = parseInt(station.aqi);
-          aqiBox.innerText = `${aqi} (${station.status})`;
-          aqiBox.style.backgroundColor = getAQIColor(aqi);
-        } else {
-          aqiBox.innerText = "⚠ 找不到測站";
+      // 天氣
+      async function loadWeather() {
+        try {
+          const res = await fetch("https://sta.ci.taiwan.gov.tw/STA_Weather/v1.0/Datastreams?$expand=Thing/Locations,Observations($orderby=phenomenonTime%20desc;$top=1)&$select=name,properties&$filter=substringof(%27%E7%8F%BE%E5%9C%A8%E5%A4%A9%E6%B0%A3%E8%A7%80%E6%B8%AC%E5%A0%B1%E5%91%8A%27,Thing/description)&$count=true");
+          const data = await res.json();
+          document.getElementById("weather").innerText = data.value[0].Observations[0].result;
+        } catch (err) {
+          document.getElementById("weather").innerText = "⚠ 讀取失敗";
+        }
+      }
+
+      // AQI
+      async function loadAQI(stationName = "臺南") {
+        const aqiBox = document.getElementById("aqi");
+        aqiBox.innerText = "載入中…";
+        aqiBox.style.backgroundColor = "transparent";
+
+        try {
+          const res = await fetch("https://data.moenv.gov.tw/api/v2/aqx_p_432?api_key=9e565f9a-84dd-4e79-9097-d403cae1ea75&limit=1000&sort=ImportDate%20desc&format=JSON");
+          const data = await res.json();
+          const station = data.records.find(r => r.sitename === stationName);
+
+          if (station) {
+            const aqi = parseInt(station.aqi);
+            aqiBox.innerText = `${aqi} (${station.status})`;
+            aqiBox.style.backgroundColor = getAQIColor(aqi);
+          } else {
+            aqiBox.innerText = "⚠ 找不到測站";
+            aqiBox.style.backgroundColor = "transparent";
+          }
+        } catch (err) {
+          aqiBox.innerText = "⚠ 讀取失敗";
           aqiBox.style.backgroundColor = "transparent";
         }
-      } catch (err) { 
-        aqiBox.innerText = "⚠ 讀取失敗";
-        aqiBox.style.backgroundColor = "transparent";
       }
-    }
 
-    // 初始化
-    loadTempHumidity();
-    loadWeather();
-    loadAQI();
+      // 初始化
+      loadTempHumidity();
+      loadWeather();
+      loadAQI();
 
-    // 切換測站
-    document.getElementById("stationSelect").addEventListener("change", function() {
-      loadAQI(this.value);
-    });
+      // 切換測站
+      document.getElementById("stationSelect").addEventListener("change", function () {
+        loadAQI(this.value);
+      });
 
-    // 彈出視窗控制
-    const modal = document.getElementById("infoModal");
-    const btn = document.getElementById("infoBtn");
-    const closeBtn = document.getElementById("closeModal");
 
-    btn.onclick = () => { modal.style.display = "block"; }
-    closeBtn.onclick = () => { modal.style.display = "none"; }
-    window.onclick = (e) => { if (e.target === modal) modal.style.display = "none"; }
-  </script>
+    </script>
 </body>
+
 </html>
