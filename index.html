@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
+
 <head>
   <meta charset="UTF-8">
   <title>台南市即時環境資訊</title>
@@ -11,27 +12,42 @@
       margin: 20px;
       font-size: 20px;
     }
+
     .row-top {
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-bottom: 15px;
     }
+
     .row-info {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
       gap: 10px;
     }
-    .row-info > div:nth-child(1) { text-align: left; }
-    .row-info > div:nth-child(2) { text-align: center; }
-    .row-info > div:nth-child(3) { text-align: center; }
-    .row-info > div:nth-child(4) { text-align: right; }
+
+    .row-info>div:nth-child(1) {
+      text-align: left;
+    }
+
+    .row-info>div:nth-child(2) {
+      text-align: center;
+    }
+
+    .row-info>div:nth-child(3) {
+      text-align: center;
+    }
+
+    .row-info>div:nth-child(4) {
+      text-align: right;
+    }
 
     #aqi {
       font-weight: bold;
       padding: 2px 6px;
       border-radius: 4px;
     }
+
     .info-btn {
       margin-left: 8px;
       color: rgb(71, 134, 235);
@@ -39,6 +55,7 @@
       font-weight: bold;
       cursor: default;
     }
+
     .popover {
       display: none;
       position: fixed;
@@ -50,30 +67,68 @@
       padding: 10px;
       width: 400px;
       font-size: 14px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
       z-index: 9999;
     }
-    .info-btn:hover + .popover, .popover:hover { display: block; }
+
+    .info-btn:hover+.popover,
+    .popover:hover {
+      display: block;
+    }
 
     .aqi-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 6px 12px;
     }
-    .aqi-title { color:#fff; font-size:16px; }
-    .aqi-level {
-      padding: 6px; border-radius: 4px;
-      font-weight: bold; text-align: center; white-space: nowrap;
-      width: 100%; box-sizing: border-box;
+
+    .aqi-title {
+      color: #fff;
+      font-size: 16px;
     }
-    .level1 { background: rgba(121,255,121,0.75); color:#000; }
-    .level2 { background: rgba(255,255,111,0.75); color:#000; }
-    .level3 { background: rgba(255,187,119,0.75); color:#000; }
-    .level4 { background: rgba(255,45,45,0.75); color:#fff; }
-    .level5 { background: rgba(177,91,255,0.75); color:#fff; }
-    .level6 { background: rgba(126,0,35,0.75); color:#fff; }
+
+    .aqi-level {
+      padding: 6px;
+      border-radius: 4px;
+      font-weight: bold;
+      text-align: center;
+      white-space: nowrap;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .level1 {
+      background: rgba(121, 255, 121, 0.75);
+      color: #000;
+    }
+
+    .level2 {
+      background: rgba(255, 255, 111, 0.75);
+      color: #000;
+    }
+
+    .level3 {
+      background: rgba(255, 187, 119, 0.75);
+      color: #000;
+    }
+
+    .level4 {
+      background: rgba(255, 45, 45, 0.75);
+      color: #fff;
+    }
+
+    .level5 {
+      background: rgba(177, 91, 255, 0.75);
+      color: #fff;
+    }
+
+    .level6 {
+      background: rgba(126, 0, 35, 0.75);
+      color: #fff;
+    }
   </style>
 </head>
+
 <body>
   <div class="container">
 
@@ -119,7 +174,7 @@
     // 時間
     function updateTime() {
       const now = new Date();
-      const weekdays = ["日","一","二","三","四","五","六"];
+      const weekdays = ["日", "一", "二", "三", "四", "五", "六"];
       const formatted = now.toLocaleDateString() + " (週" + weekdays[now.getDay()] + ") " + now.toLocaleTimeString();
       document.getElementById("datetime").innerText = formatted;
     }
@@ -239,9 +294,17 @@
     updateAll(defaultStation);
 
     // 下拉選單
-    document.getElementById("stationSelect").addEventListener("change", function() {
+    document.getElementById("stationSelect").addEventListener("change", function () {
       updateAll(this.value);
     });
+
+    // ✅ 自動刷新：每 5 分鐘更新一次
+    setInterval(() => {
+      const currentStation = document.getElementById("stationSelect").value;
+      updateAll(currentStation);
+      console.log("⏳ 自動刷新完成，測站：" + currentStation);
+    }, 300000); // 300000 毫秒 = 5 分鐘
   </script>
 </body>
+
 </html>
