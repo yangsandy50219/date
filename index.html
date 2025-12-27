@@ -20,9 +20,10 @@
       margin-bottom: 15px;
     }
 
+    /* ✅ 5 欄 */
     .row-info {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(5, 1fr);
       gap: 10px;
     }
 
@@ -38,14 +39,38 @@
       text-align: center;
     }
 
+    #stationSelect {
+      font-size: 16px;
+      transform: scale(1.15);
+      transform-origin: left center;
+    }
+
+
+    /* THI */
     .row-info>div:nth-child(4) {
+      text-align: center;
+    }
+
+    /* 天氣 */
+    .row-info>div:nth-child(5) {
       text-align: right;
     }
 
+    /* AQI */
+
+    /* AQI 方框 */
     #aqi {
       font-weight: bold;
       padding: 2px 6px;
       border-radius: 4px;
+    }
+
+    /* THI 方框 */
+    #thi {
+      font-weight: bold;
+      padding: 2px 6px;
+      border-radius: 4px;
+      display: inline-block;
     }
 
     .info-btn {
@@ -54,13 +79,18 @@
       font-size: 16px;
       font-weight: bold;
       cursor: default;
+      user-select: none;
     }
 
+    /* ✅ THI 的ⓘ容器：讓 popover 以它為定位基準 */
+    .info-wrap {
+      position: relative;
+      display: inline-block;
+    }
+
+    /* 共用 popover 外觀（預設：AQI 仍用 fixed 右上角） */
     .popover {
       display: none;
-      position: fixed;
-      top: 5px;
-      right: 20px;
       background: rgba(145, 137, 137, 0.8);
       border: 1px solid #ccc;
       border-radius: 6px;
@@ -71,8 +101,29 @@
       z-index: 9999;
     }
 
+    /* AQI：維持原本右上角顯示 */
+    .popover-fixed {
+      position: fixed;
+      top: 5px;
+      right: 20px;
+    }
+
+    /* ✅ THI：出現在ⓘ右側，上緣對齊ⓘ */
+    .popover-right {
+      position: absolute;
+      top: -60px;
+      left: calc(100% + 8px);
+    }
+
+
+    /* ✅ AQI：原本規則保留（ⓘ旁邊緊鄰 popover） */
     .info-btn:hover+.popover,
     .popover:hover {
+      display: block;
+    }
+
+    /* ✅ THI：改成 hover info-wrap 顯示（避免與上面規則衝突） */
+    .info-wrap:hover .popover {
       display: block;
     }
 
@@ -97,6 +148,7 @@
       box-sizing: border-box;
     }
 
+    /* AQI 色階 */
     .level1 {
       background: rgba(121, 255, 121, 0.75);
       color: #000;
@@ -126,6 +178,44 @@
       background: rgba(126, 0, 35, 0.75);
       color: #fff;
     }
+
+    /* THI 色階 */
+    .thi1 {
+      background: rgba(0, 80, 200, 0.75);
+      color: #fff;
+    }
+
+    /* ≤10 */
+    .thi2 {
+      background: rgba(0, 150, 255, 0.75);
+      color: #fff;
+    }
+
+    /* 11–15 */
+    .thi3 {
+      background: rgba(0, 220, 255, 0.75);
+      color: #000;
+    }
+
+    /* 16–19 */
+    .thi4 {
+      background: rgba(0, 200, 80, 0.75);
+      color: #000;
+    }
+
+    /* 20–26 */
+    .thi5 {
+      background: rgba(255, 120, 180, 0.75);
+      color: #000;
+    }
+
+    /* 27–30 */
+    .thi6 {
+      background: rgba(255, 0, 0, 0.75);
+      color: #fff;
+    }
+
+    /* ≥31 */
   </style>
 </head>
 
@@ -146,15 +236,38 @@
       </div>
     </div>
 
-    <!-- 第二排：四個資訊 -->
+    <!-- 第二排：五個資訊 -->
     <div class="row-info">
       <div>🌡 溫度：<span id="temp">載入中…</span></div>
       <div>💧 濕度：<span id="humidity">載入中…</span></div>
+
+      <!-- THI -->
+      <div style="position:relative; display:inline-block;">
+        😊 THI：<span id="thi">載入中…</span>
+
+        <span class="info-wrap">
+          <span class="info-btn">ⓘ</span>
+          <div class="popover popover-right">
+            <b class="aqi-title">THI 分級說明</b>
+            <div class="aqi-grid">
+              <div class="aqi-level thi1">≤ 10 非常寒冷</div>
+              <div class="aqi-level thi2">11 – 15 寒冷</div>
+              <div class="aqi-level thi3">16 – 19 稍寒</div>
+              <div class="aqi-level thi4">20 – 26 舒適</div>
+              <div class="aqi-level thi5">27 – 30 悶熱</div>
+              <div class="aqi-level thi6">≥ 31 易中暑</div>
+            </div>
+          </div>
+        </span>
+      </div>
+
       <div>⛅ 天氣：<span id="weather">載入中…</span></div>
+
+      <!-- AQI -->
       <div style="position:relative; display:inline-block;">
         🌫 AQI：<span id="aqi">載入中…</span>
         <span class="info-btn">ⓘ</span>
-        <div class="popover">
+        <div class="popover popover-fixed">
           <b class="aqi-title">AQI 分級說明</b>
           <div class="aqi-grid">
             <div class="aqi-level level1">0-50 良好</div>
@@ -191,61 +304,101 @@
       return "#7E0023";
     }
 
+    // THI 分級
+    function getTHILevel(thi) {
+      if (thi <= 10) return { label: "非常寒冷", cls: "thi1" };
+      if (thi <= 15) return { label: "寒冷", cls: "thi2" };
+      if (thi <= 19) return { label: "稍寒", cls: "thi3" };
+      if (thi <= 26) return { label: "舒適", cls: "thi4" };
+      if (thi <= 30) return { label: "悶熱", cls: "thi5" };
+      return { label: "易中暑", cls: "thi6" };
+    }
+
+    // ✅ 修正：RH 要用 0~1（RH/100），不然 Td/THI 會爆表
+    // Td = (RH/100)^(1/8) (112 + 0.9T) + 0.1T − 112
+    function calcTd(T, RH_percent) {
+      const RH = RH_percent / 100;
+      return Math.pow(RH, 1 / 8) * (112 + 0.9 * T) + 0.1 * T - 112;
+    }
+
+    // THI = T − 0.55[1 − exp(17.269Td/(Td+237.3))/exp(17.269T/(T+237.3))](T−14)
+    function calcTHI(T, Td) {
+      const a = Math.exp((17.269 * Td) / (Td + 237.3));
+      const b = Math.exp((17.269 * T) / (T + 237.3));
+      return T - 0.55 * (1 - a / b) * (T - 14);
+    }
+
+    let latestTemp = null;
+    let latestHum = null;
+
+    function updateTHIBox() {
+      const thiBox = document.getElementById("thi");
+      if (!thiBox) return;
+
+      if (!Number.isFinite(latestTemp) || !Number.isFinite(latestHum) || latestHum <= 0) {
+        thiBox.innerText = "載入中…";
+        thiBox.className = "";
+        thiBox.style.backgroundColor = "transparent";
+        return;
+      }
+
+      const Td = calcTd(latestTemp, latestHum);
+      const thi = calcTHI(latestTemp, Td);
+
+      const thiRounded = Math.round(thi * 10) / 10;
+      const lv = getTHILevel(thiRounded);
+
+      thiBox.innerText = `${thiRounded} (${lv.label})`;
+
+      // 清掉 inline 背景，避免蓋掉 class 背景
+      thiBox.style.backgroundColor = "";
+
+      thiBox.className = "";
+      thiBox.classList.add(lv.cls);
+    }
+
     // 測站 mapping
     const stationMap = {
-      "東區": {
-        aqi: "臺南",
-        tempId: 645,
-        humId: 644,
-        weatherId: "467420" // 永康
-      },
-      "安南區": {
-        aqi: "安南",
-        tempId: 14004,
-        humId: 14003,
-        weatherId: "CAN040"
-      },
-      "新營區": {
-        aqi: "新營",
-        tempId: 738,
-        humId: 737,
-        weatherId: "CAN010"
-      },
-      "善化區": {
-        aqi: "善化",
-        tempId: 14019,
-        humId: 14018,
-        weatherId: "CAN090"
-      }
+      "東區": { aqi: "臺南", tempId: 645, humId: 644, weatherId: "467420" },
+      "安南區": { aqi: "安南", tempId: 14004, humId: 14003, weatherId: "CAN040" },
+      "新營區": { aqi: "新營", tempId: 738, humId: 737, weatherId: "CAN010" },
+      "善化區": { aqi: "善化", tempId: 14019, humId: 14018, weatherId: "CAN090" }
     };
 
-    // 溫度
     async function loadTemp(station) {
       const id = stationMap[station].tempId;
       try {
         const res = await fetch(`https://sta.ci.taiwan.gov.tw/STA_AirQuality_EPAIoT/v1.0/Datastreams(${id})/Observations?$orderby=phenomenonTime desc&$top=1`);
         const data = await res.json();
+        const t = parseFloat(data.value[0].result);
         document.getElementById("temp").innerText = data.value[0].result + " °C";
+        latestTemp = Number.isFinite(t) ? t : null;
       } catch {
         document.getElementById("temp").innerText = "⚠ 讀取失敗";
+        latestTemp = null;
+      } finally {
+        updateTHIBox();
       }
     }
 
-    // 濕度
     async function loadHumidity(station) {
       const id = stationMap[station].humId;
       try {
         const res = await fetch(`https://sta.ci.taiwan.gov.tw/STA_AirQuality_EPAIoT/v1.0/Datastreams(${id})/Observations?$orderby=phenomenonTime desc&$top=1`);
         const data = await res.json();
+        const h = parseFloat(data.value[0].result);
         document.getElementById("humidity").innerText = data.value[0].result + " %";
+        latestHum = Number.isFinite(h) ? h : null;
       } catch {
         document.getElementById("humidity").innerText = "⚠ 讀取失敗";
+        latestHum = null;
+      } finally {
+        updateTHIBox();
       }
     }
 
-    // 天氣
     async function loadWeather(station) {
-      const id = stationMap[station].weatherId; // stationID e.g. CAN010
+      const id = stationMap[station].weatherId;
       try {
         const url = `https://sta.ci.taiwan.gov.tw/STA_Weather/v1.0/Datastreams?$expand=Thing,Observations($orderby=phenomenonTime desc;$top=1)&$filter=Thing/properties/stationID eq '${id}'`;
         const res = await fetch(url);
@@ -260,7 +413,6 @@
       }
     }
 
-    // AQI
     async function loadAQI(station) {
       const aqiBox = document.getElementById("aqi");
       aqiBox.innerText = "載入中…";
@@ -281,29 +433,28 @@
       }
     }
 
-    // 更新全部
     function updateAll(station) {
+      latestTemp = null;
+      latestHum = null;
+      updateTHIBox();
       loadTemp(station);
       loadHumidity(station);
       loadWeather(station);
       loadAQI(station);
     }
 
-    // 初始化
     const defaultStation = "東區";
     updateAll(defaultStation);
 
-    // 下拉選單
     document.getElementById("stationSelect").addEventListener("change", function () {
       updateAll(this.value);
     });
 
-    // ✅ 自動刷新：每 5 分鐘更新一次
     setInterval(() => {
       const currentStation = document.getElementById("stationSelect").value;
       updateAll(currentStation);
       console.log("⏳ 自動刷新完成，測站：" + currentStation);
-    }, 300000); // 300000 毫秒 = 5 分鐘
+    }, 300000);
   </script>
 </body>
 
