@@ -45,7 +45,6 @@
       transform-origin: left center;
     }
 
-
     /* THI */
     .row-info>div:nth-child(4) {
       text-align: center;
@@ -55,8 +54,6 @@
     .row-info>div:nth-child(5) {
       text-align: right;
     }
-
-    /* AQI */
 
     /* AQI 方框 */
     #aqi {
@@ -114,7 +111,6 @@
       top: -60px;
       left: calc(100% + 8px);
     }
-
 
     /* ✅ AQI：原本規則保留（ⓘ旁邊緊鄰 popover） */
     .info-btn:hover+.popover,
@@ -228,7 +224,7 @@
       <div>
         <label for="stationSelect">選擇測站：</label>
         <select id="stationSelect">
-          <option value="東區">臺南（東區）</option>
+          <option value="臺南">臺南（中西區）</option>
           <option value="安南區">安南</option>
           <option value="新營區">新營</option>
           <option value="善化區">善化</option>
@@ -357,23 +353,91 @@
       thiBox.classList.add(lv.cls);
     }
 
-    // 測站 mapping
+    // ✅✅✅ 改：測站 mapping（溫濕度改用 CWA stationId）
     const stationMap = {
-      "東區": { aqi: "臺南", tempId: 645, humId: 644, weatherId: "467420" },
-      "安南區": { aqi: "安南", tempId: 14004, humId: 14003, weatherId: "CAN040" },
-      "新營區": { aqi: "新營", tempId: 738, humId: 737, weatherId: "CAN010" },
-      "善化區": { aqi: "善化", tempId: 14019, humId: 14018, weatherId: "CAN090" }
+      "臺南": { aqi: "臺南", cwaId: "467410", weatherId: "467420" }, // ← 原本 467410 改成 C0O900
+      "安南區": { aqi: "安南", cwaId: "C2O950", weatherId: "CAN040" },
+      "新營區": { aqi: "新營", cwaId: "C0X250", weatherId: "CAN010" },
+      "善化區": { aqi: "善化", cwaId: "C0O900", weatherId: "CAN090" }
     };
 
+    // ✅✅✅ 改：用 CWA O-A0001-001 抓溫濕度（一次抓完）
+    const CWA_API =
+      "https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-A0001-001?Authorization=CWA-3658EFC9-2F77-426A-BEC8-EE60503417C9&format=JSON";
+
+    let cwaCache = { ts: 0, byId: new Map() };
+    const CWA_CACHE_MS = 60 * 1000; // 1分鐘更新一次
+
+    async function fetchCWAAllStations() {
+      const now = Date.now();
+      if (cwaCache.byId.size > 0 && now - cwaCache.ts < CWA_CACHE_MS) {
+        return cwaCache.byId;
+      }
+
+      const res = await fetch(CWA_API, { cache: "no-store" });
+      const json = await res.json();
+
+      // 兼容不同層級結構
+      const locations =
+        json?.records?.location ||
+        json?.records?.locations?.[0]?.location ||
+        [];
+
+      const map = new Map();
+      for (const loc of locations) {
+        const id = loc?.stationId || loc?.StationId || loc?.locationId || loc?.LocationId;
+        if (!id) continue;
+        map.set(String(id).trim(), loc);
+      }
+
+      cwaCache = { ts: now, byId: map };
+      return map;
+    }
+
+    function getElementValue(weatherElementArray, elementName) {
+      const el = (weatherElementArray || []).find(e =>
+        (e.elementName || e.ElementName || "").toUpperCase() === elementName.toUpperCase()
+      );
+      const v = el?.elementValue ?? el?.ElementValue;
+      const n = parseFloat(v);
+      return Number.isFinite(n) ? n : null;
+    }
+
+    // ✅ 從 CWA payload 找到指定 StationId 的那筆 location
+    function findCwaLocationById(payload, stationId) {
+      // ✅ 你的 JSON 是 records.Station（陣列）
+      const list =
+        payload?.records?.Station ||
+        payload?.records?.station ||
+        payload?.records?.location ||
+        payload?.records?.Location ||
+        [];
+
+      if (!Array.isArray(list)) return null;
+
+      const sid = String(stationId).trim();
+      return list.find(x => String(x.StationId).trim() === sid) || null;
+    }
+
+
+    // ✅ 溫度（CWA）
     async function loadTemp(station) {
-      const id = stationMap[station].tempId;
+      const stationId = stationMap[station].cwaId; // ← 你 stationMap 裡那個 CWA 站號欄位
       try {
-        const res = await fetch(`https://sta.ci.taiwan.gov.tw/STA_AirQuality_EPAIoT/v1.0/Datastreams(${id})/Observations?$orderby=phenomenonTime desc&$top=1`);
-        const data = await res.json();
-        const t = parseFloat(data.value[0].result);
-        document.getElementById("temp").innerText = data.value[0].result + " °C";
-        latestTemp = Number.isFinite(t) ? t : null;
-      } catch {
+        const res = await fetch(CWA_API, { cache: "no-store" });
+        const payload = await res.json();
+
+        const loc = findCwaLocationById(payload, stationId);
+        if (!loc) throw new Error(`CWA 找不到 stationId=${stationId}`);
+
+        const t = parseFloat(loc.WeatherElement?.AirTemperature);
+        if (!Number.isFinite(t) || t === -99) throw new Error(`CWA 溫度無效：${loc.WeatherElement?.AirTemperature}`);
+
+        document.getElementById("temp").innerText = `${t.toFixed(1)} °C`;
+        latestTemp = t;
+
+      } catch (e) {
+        console.error("[CWA][TEMP] load failed:", e);
         document.getElementById("temp").innerText = "⚠ 讀取失敗";
         latestTemp = null;
       } finally {
@@ -381,15 +445,25 @@
       }
     }
 
+    // ✅ 濕度（CWA）
     async function loadHumidity(station) {
-      const id = stationMap[station].humId;
+      const stationId = stationMap[station].cwaId;
       try {
-        const res = await fetch(`https://sta.ci.taiwan.gov.tw/STA_AirQuality_EPAIoT/v1.0/Datastreams(${id})/Observations?$orderby=phenomenonTime desc&$top=1`);
-        const data = await res.json();
-        const h = parseFloat(data.value[0].result);
-        document.getElementById("humidity").innerText = data.value[0].result + " %";
-        latestHum = Number.isFinite(h) ? h : null;
-      } catch {
+        const res = await fetch(CWA_API, { cache: "no-store" });
+        const payload = await res.json();
+
+        const loc = findCwaLocationById(payload, stationId);
+        if (!loc) throw new Error(`CWA 找不到 stationId=${stationId}`);
+
+        const h = parseFloat(loc.WeatherElement?.RelativeHumidity);
+        if (!Number.isFinite(h) || h === -99) throw new Error(`CWA 濕度無效：${loc.WeatherElement?.RelativeHumidity}`);
+
+        // ✅ 你的 HTML 用的是 id="humidity"
+        document.getElementById("humidity").innerText = `${h.toFixed(0)} %`;
+        latestHum = h;
+
+      } catch (e) {
+        console.error("[CWA][HUM] load failed:", e);
         document.getElementById("humidity").innerText = "⚠ 讀取失敗";
         latestHum = null;
       } finally {
@@ -443,7 +517,7 @@
       loadAQI(station);
     }
 
-    const defaultStation = "東區";
+    const defaultStation = "臺南";
     updateAll(defaultStation);
 
     document.getElementById("stationSelect").addEventListener("change", function () {
@@ -455,6 +529,7 @@
       updateAll(currentStation);
       console.log("⏳ 自動刷新完成，測站：" + currentStation);
     }, 300000);
+
   </script>
 </body>
 
