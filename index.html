@@ -377,22 +377,37 @@
       const res = await fetch(CWA_API, { cache: "no-store" });
       const json = await res.json();
 
-      // 兼容不同層級結構
-      const locations =
-        json?.records?.location ||
-        json?.records?.locations?.[0]?.location ||
+      // ✅ 兼容：records.location（常見）或 records.Station（你之前成功那種）
+      const list =
+        (Array.isArray(json?.records?.location) && json.records.location) ||
+        (Array.isArray(json?.records?.Station) && json.records.Station) ||
         [];
 
       const map = new Map();
-      for (const loc of locations) {
-        const id = loc?.stationId || loc?.StationId || loc?.locationId || loc?.LocationId;
+      for (const item of list) {
+        const id = item?.StationId ?? item?.stationId ?? item?.stationID ?? item?.StationID;
         if (!id) continue;
-        map.set(String(id).trim(), loc);
+        map.set(String(id).trim(), item);
       }
 
       cwaCache = { ts: now, byId: map };
       return map;
     }
+
+    function findCwaStation(byIdMap, stationKey) {
+      const key = String(stationKey).trim();
+
+      // 1) 先用 StationId 直接找
+      if (byIdMap.has(key)) return byIdMap.get(key);
+
+      // 2) 找不到就用站名（StationName）模糊比對
+      for (const v of byIdMap.values()) {
+        const name = String(v?.StationName ?? v?.stationName ?? "").trim();
+        if (name && (name === key || name.includes(key) || key.includes(name))) return v;
+      }
+      return null;
+    }
+
 
     function getElementValue(weatherElementArray, elementName) {
       const el = (weatherElementArray || []).find(e =>
@@ -420,22 +435,38 @@
     }
 
 
+    function readElement(st, keyUpper) {
+      const we = st?.WeatherElement;
+
+      // ✅ 型態 1：WeatherElement 是物件（AirTemperature / RelativeHumidity）
+      if (we && typeof we === "object" && !Array.isArray(we)) {
+        if (keyUpper === "AIRTEMPERATURE") return parseFloat(we.AirTemperature);
+        if (keyUpper === "RELATIVEHUMIDITY") return parseFloat(we.RelativeHumidity);
+      }
+
+      // ✅ 型態 2：WeatherElement 是陣列（[{elementName, elementValue}, ...]）
+      if (Array.isArray(we)) {
+        const hit = we.find(e => String(e.elementName || e.ElementName || "").toUpperCase() === keyUpper);
+        const v = hit?.elementValue ?? hit?.ElementValue;
+        return parseFloat(v);
+      }
+
+      return NaN;
+    }
+
     // ✅ 溫度（CWA）
     async function loadTemp(station) {
-      const stationId = stationMap[station].cwaId; // ← 你 stationMap 裡那個 CWA 站號欄位
+      const stationKey = stationMap[station].cwaId; // 可以放 StationId（C0X250）或站名（臺南/新營）
       try {
-        const res = await fetch(CWA_API, { cache: "no-store" });
-        const payload = await res.json();
+        const byIdMap = await fetchCWAAllStations();
+        const st = findCwaStation(byIdMap, stationKey);
+        if (!st) throw new Error(`CWA 找不到 stationKey=${stationKey}`);
 
-        const loc = findCwaLocationById(payload, stationId);
-        if (!loc) throw new Error(`CWA 找不到 stationId=${stationId}`);
-
-        const t = parseFloat(loc.WeatherElement?.AirTemperature);
-        if (!Number.isFinite(t) || t === -99) throw new Error(`CWA 溫度無效：${loc.WeatherElement?.AirTemperature}`);
+        const t = readElement(st, "AIRTEMPERATURE");
+        if (!Number.isFinite(t) || t === -99) throw new Error(`CWA 溫度無效：${t}`);
 
         document.getElementById("temp").innerText = `${t.toFixed(1)} °C`;
         latestTemp = t;
-
       } catch (e) {
         console.error("[CWA][TEMP] load failed:", e);
         document.getElementById("temp").innerText = "⚠ 讀取失敗";
@@ -447,21 +478,17 @@
 
     // ✅ 濕度（CWA）
     async function loadHumidity(station) {
-      const stationId = stationMap[station].cwaId;
+      const stationKey = stationMap[station].cwaId;
       try {
-        const res = await fetch(CWA_API, { cache: "no-store" });
-        const payload = await res.json();
+        const byIdMap = await fetchCWAAllStations();
+        const st = findCwaStation(byIdMap, stationKey);
+        if (!st) throw new Error(`CWA 找不到 stationKey=${stationKey}`);
 
-        const loc = findCwaLocationById(payload, stationId);
-        if (!loc) throw new Error(`CWA 找不到 stationId=${stationId}`);
+        const h = readElement(st, "RELATIVEHUMIDITY");
+        if (!Number.isFinite(h) || h === -99) throw new Error(`CWA 濕度無效：${h}`);
 
-        const h = parseFloat(loc.WeatherElement?.RelativeHumidity);
-        if (!Number.isFinite(h) || h === -99) throw new Error(`CWA 濕度無效：${loc.WeatherElement?.RelativeHumidity}`);
-
-        // ✅ 你的 HTML 用的是 id="humidity"
         document.getElementById("humidity").innerText = `${h.toFixed(0)} %`;
         latestHum = h;
-
       } catch (e) {
         console.error("[CWA][HUM] load failed:", e);
         document.getElementById("humidity").innerText = "⚠ 讀取失敗";
@@ -471,19 +498,52 @@
       }
     }
 
+
     async function loadWeather(station) {
-      const id = stationMap[station].weatherId;
+      const stationId = stationMap?.[station]?.cwaId;
+      const el = document.getElementById("weather");
+
       try {
-        const url = `https://sta.ci.taiwan.gov.tw/STA_Weather/v1.0/Datastreams?$expand=Thing,Observations($orderby=phenomenonTime desc;$top=1)&$filter=Thing/properties/stationID eq '${id}'`;
-        const res = await fetch(url);
-        const data = await res.json();
-        if (data.value.length > 0 && data.value[0].Observations.length > 0) {
-          document.getElementById("weather").innerText = data.value[0].Observations[0].result;
-        } else {
-          document.getElementById("weather").innerText = "⚠ 無資料";
+        if (!el) throw new Error(`頁面找不到 id="weather" 的元素`);
+        if (!stationId) throw new Error(`stationMap[${station}] 沒有 cwaId`);
+
+        const res = await fetch(CWA_API, { cache: "no-store" });
+        if (!res.ok) throw new Error(`CWA HTTP ${res.status} ${res.statusText}`);
+
+        const payload = await res.json();
+
+        const list =
+          payload?.records?.Station ||
+          payload?.records?.station ||
+          payload?.records?.location ||
+          payload?.records?.Location ||
+          [];
+
+        if (!Array.isArray(list) || list.length === 0) {
+          throw new Error(`CWA records.Station 為空（回傳結構可能變了）`);
         }
-      } catch {
-        document.getElementById("weather").innerText = "⚠ 讀取失敗";
+
+        const st = list.find(x => String(x?.StationId).trim() === String(stationId).trim());
+        if (!st) {
+          // 🔎 幫你把前幾個站號印出來，方便立刻比對是不是你 stationId 寫錯
+          console.log("[CWA][WEATHER] first StationId:", list.slice(0, 10).map(s => s.StationId));
+          throw new Error(`CWA 找不到 stationId=${stationId}`);
+        }
+
+        const w = st?.WeatherElement?.Weather;
+        if (!w || w === "-99") throw new Error(`WeatherElement.Weather 無資料（值=${w}）`);
+
+        // ✅ 想加更多資訊可開啟這段（不想就留 w）
+        const rain = st?.WeatherElement?.Now?.Precipitation;
+        const ws = st?.WeatherElement?.WindSpeed;
+        const extra = [];
+        if (rain && rain !== "-99") extra.push(`降雨 ${rain}`);
+
+        el.innerText = extra.length ? `${w}｜${extra.join("｜")}` : w;
+
+      } catch (e) {
+        console.error("[CWA][WEATHER] load failed:", e);
+        if (el) el.innerText = `⚠ 讀取失敗：${e.message || e}`;
       }
     }
 
