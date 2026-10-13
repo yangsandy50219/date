@@ -548,24 +548,66 @@
     }
 
     async function loadAQI(station) {
-      const aqiBox = document.getElementById("aqi");
-      aqiBox.innerText = "載入中…";
-      aqiBox.style.backgroundColor = "transparent";
-      try {
-        const res = await fetch("https://data.moenv.gov.tw/api/v2/aqx_p_432?api_key=9e565f9a-84dd-4e79-9097-d403cae1ea75&limit=1000&sort=ImportDate desc&format=JSON");
-        const data = await res.json();
-        const record = data.records.find(r => r.sitename === stationMap[station].aqi);
-        if (record) {
-          const aqi = parseInt(record.aqi);
-          aqiBox.innerText = `${aqi} (${record.status})`;
-          aqiBox.style.backgroundColor = getAQIColor(aqi);
-        } else {
-          aqiBox.innerText = "⚠ 找不到測站";
-        }
-      } catch {
-        aqiBox.innerText = "⚠ 讀取失敗";
-      }
+  const aqiBox = document.getElementById("aqi");
+  aqiBox.innerText = "載入中…";
+  aqiBox.style.backgroundColor = "transparent";
+
+  try {
+    const url = new URL(
+      "https://data.moenv.gov.tw/api/v2/aqx_p_432"
+    );
+
+    url.searchParams.set("api_key", "ed899cf1-b71e-444b-addf-9d8eb0d4e743");
+    url.searchParams.set("limit", "1000");
+    url.searchParams.set("sort", "ImportDate desc");
+    url.searchParams.set("format", "JSON");
+
+    const res = await fetch(url);
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
     }
+
+    const data = await res.json();
+
+    // 相容不同的回傳資料結構
+    const records = Array.isArray(data)
+  ? data
+  : data.records ??
+    data.result?.records ??
+    data.data?.records;
+
+    if (!Array.isArray(records)) {
+      console.error("[AQI] API 回傳內容：", data);
+      throw new Error("找不到資料 records，請檢查 API 回傳格式");
+    }
+
+    const stationName = stationMap[station].aqi;
+
+    const record = records.find(
+      r => r.sitename === stationName
+    );
+
+    if (!record) {
+      console.error("[AQI] 找不到測站：", stationName);
+      console.log("[AQI] 可用欄位：", records[0]);
+      throw new Error(`找不到測站：${stationName}`);
+    }
+
+    const aqi = Number(record.aqi);
+
+    if (!Number.isFinite(aqi)) {
+      throw new Error("AQI 欄位不是有效數字");
+    }
+
+    aqiBox.innerText = `${aqi} (${record.status})`;
+    aqiBox.style.backgroundColor = getAQIColor(aqi);
+
+  } catch (e) {
+    console.error("[AQI] 讀取失敗：", e);
+    aqiBox.innerText = "⚠ 讀取失敗";
+  }
+}
 
     function updateAll(station) {
       latestTemp = null;
